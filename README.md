@@ -7,7 +7,7 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/sjnb8wWGCJ)
 [![GitHub stars](https://img.shields.io/github/stars/HardHeadHackerHead/discord-mcp?style=social)](https://github.com/HardHeadHackerHead/discord-mcp)
 
-**Manage your entire Discord server from Claude Code, Claude Desktop, Cursor, or Windsurf.** 134 admin tools across 20 categories — roles, channels, members, messages, moderation, forums, stages, webhooks, events, polls, DMs, and more. Just talk to your AI in plain English.
+**Manage your entire Discord server from Claude Code, Claude Desktop, Cursor, or Windsurf.** 139 admin tools across 20 categories — roles, channels, members, messages, threads, moderation, forums, stages, webhooks, events, polls, DMs, and more. Just talk to your AI in plain English.
 
 Built by [QuadsLab.io](https://quadslab.io) | [Discord](https://discord.gg/sjnb8wWGCJ) | [npm](https://www.npmjs.com/package/@quadslab.io/discord-mcp)
 
@@ -104,6 +104,9 @@ Once connected to Claude Code, just ask in natural language:
 - *"Create a role called VIP with a gold color and assign it to @john"*
 - *"Show me the audit log for the last 24 hours"*
 - *"Set up an automod rule to block links in #general"*
+- *"Show me the last 20 messages in the 'API Discussion' thread"*
+- *"Send a reply in the 'bug-report' thread saying we're looking into it"*
+- *"List all archived threads in #general"*
 - *"Create a forum post in #feedback titled Bug Reports"*
 - *"Timeout @spammer for 1 hour for spamming"*
 - *"List all webhooks and delete the unused ones"*
@@ -121,10 +124,11 @@ Claude automatically resolves channel, role, and member names using fuzzy matchi
 
 ## Features
 
-- **134 tools across 20 categories** — comprehensive Discord server administration without leaving the terminal
+- **139 tools across 20 categories** — comprehensive Discord server administration without leaving the terminal
 - **Interactive setup wizard** — `npx init` walks you through bot creation, token validation, and config in under a minute
 - **Health check & permission audit** — `npx check` verifies your token, server access, and all 24 required permissions with a visual progress bar
 - **Fuzzy name resolution** — type `"bot testing"`, `"bot-testing"`, or `"bottesting"` and it resolves correctly; no need to look up IDs
+- **Thread-aware messaging** — all message tools (send, edit, pin, react, etc.) work in threads and channels alike — no separate tools needed
 - **Zero-config name matching** — channels, roles, and members are all resolved by name, ID, or mention format automatically
 - **Pre-cached server data** — all channels, roles, and members are cached on startup for instant lookups without extra API calls
 - **Structured JSON responses** — every tool returns consistent, pretty-printed JSON
@@ -224,10 +228,10 @@ When launched via `.mcp.json` (stdin is not a TTY), the server starts automatica
 | Roles | 11 | Role creation, editing, permissions, and assignment |
 | Channels | 20 | Channel creation, editing, permissions, and organization |
 | Members | 15 | Member management, moderation, and bulk operations |
-| Messages | 14 | Send, edit, delete, pin, and react to messages |
+| Messages | 14 | Send, edit, delete, pin, and react to messages (works in threads too) |
 | Reactions | 1 | Detailed reaction data with reactor info |
 | Server Admin | 16 | Server settings, invites, bans, audit log, and integrations |
-| Threads | 10 | Thread creation, archiving, locking, and deletion |
+| Threads | 15 | Thread creation, reading, editing, archiving, and member management |
 | Forums | 5 | Forum posts and tag management |
 | Emojis & Stickers | 7 | Custom emoji and sticker management |
 | Webhooks | 4 | Webhook creation, deletion, and messaging |
@@ -240,7 +244,7 @@ When launched via `.mcp.json` (stdin is not a TTY), the server starts automatica
 | Server Templates | 4 | List, create, delete, sync server templates |
 | Application Commands | 4 | Manage slash commands (CRUD) |
 | Onboarding | 2 | Get and edit server onboarding configuration |
-| **Total** | **134** | |
+| **Total** | **139** | |
 
 ---
 
@@ -317,9 +321,11 @@ When launched via `.mcp.json` (stdin is not a TTY), the server starts automatica
 
 ### Messages (14 tools)
 
+All message tools work in both regular channels **and** threads — just pass the thread name or ID as the channel.
+
 | Tool | Description |
 |------|-------------|
-| `get_messages` | Fetch recent messages from a text or voice channel |
+| `get_messages` | Fetch recent messages from a text channel, voice channel, or thread |
 | `get_message` | Fetch a single message by ID with full details |
 | `send_message` | Send a text message, optionally as a reply |
 | `send_embed` | Send a rich embed with title, fields, images, and footer |
@@ -361,18 +367,23 @@ When launched via `.mcp.json` (stdin is not a TTY), the server starts automatica
 | `set_server_icon` | Set or remove the server icon from a URL |
 | `set_server_banner` | Set or remove the server banner image (requires boost level 2+) |
 
-### Threads (10 tools)
+### Threads (15 tools)
 
 | Tool | Description |
 |------|-------------|
 | `list_threads` | List active threads, optionally filtered to a channel |
+| `list_archived_threads` | List public or private archived threads in a channel with pagination |
+| `get_thread` | Get detailed thread info — type, slowmode, auto-archive, owner, URL |
+| `get_thread_messages` | Fetch messages from a thread with before/after pagination |
+| `get_thread_pinned_messages` | Get all pinned messages in a thread |
 | `create_thread` | Start a thread from a message or as a standalone public thread |
+| `edit_thread` | Edit thread name, auto-archive duration, slowmode, or locked/archived status |
 | `archive_thread` | Archive a thread |
 | `unarchive_thread` | Unarchive a thread |
 | `delete_thread` | Delete a thread |
 | `lock_thread` | Lock a thread (prevent new messages without archiving) |
 | `unlock_thread` | Unlock a thread |
-| `get_thread_members` | List all members of a thread |
+| `list_thread_members` | List all members of a thread |
 | `add_thread_member` | Add a member to a thread |
 | `remove_thread_member` | Remove a member from a thread |
 
@@ -493,6 +504,8 @@ All tools that accept channel, role, or member names use smart fuzzy matching. Y
 2. **Exact name match** — case-insensitive
 3. **Normalized match** — ignores hyphens, spaces, and underscores (`"bot testing"` matches `"bot-testing"`)
 4. **Substring match** — partial name matches at 0.7+ similarity threshold
+5. **Thread fallback** — if no channel matches, active threads are searched using the same steps above
+6. **Archived thread fallback** — if an ID is provided and not found in active threads, the thread is fetched directly (covers archived threads)
 
 Mention formats are also handled automatically:
 
@@ -626,7 +639,7 @@ If you ran `init` from Desktop or Downloads, update to v1.2.3+ which auto-detect
         ├── messages.ts          # Messaging (14)
         ├── reactions.ts         # Reactions (1)
         ├── server.ts            # Server admin (16)
-        ├── threads.ts           # Thread management (10)
+        ├── threads.ts           # Thread management (15)
         ├── forums.ts            # Forum channels (5)
         ├── emojis.ts            # Emoji & stickers (7)
         ├── webhooks.ts          # Webhooks (4)

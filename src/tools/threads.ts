@@ -1,7 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { getGuild } from '../discord-client.js';
 import { smartFindTextChannel, smartFindChannel, smartFindMember } from './utils.js';
-import { ChannelType, ThreadChannel, ThreadAutoArchiveDuration } from 'discord.js';
+import { ChannelType, ThreadChannel, ThreadAutoArchiveDuration, FetchArchivedThreadOptions, TextChannel, NewsChannel } from 'discord.js';
 
 /**
  * Thread management tools
@@ -192,6 +192,125 @@ export const threadTools: Tool[] = [
       required: ['thread'],
     },
   },
+  {
+    name: 'get_thread',
+    description: 'Get detailed information about a specific thread by name or ID, including metadata, parent channel, and status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        thread: {
+          type: 'string',
+          description: 'The thread name or ID to look up',
+        },
+      },
+      required: ['thread'],
+    },
+  },
+  {
+    name: 'get_thread_messages',
+    description: 'Get recent messages from a thread. Thread name is fuzzy-matched.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        thread: {
+          type: 'string',
+          description: 'The thread name or ID (fuzzy matched)',
+        },
+        limit: {
+          type: 'number',
+          description: 'Number of messages to retrieve (default: 10, max: 100)',
+        },
+        before: {
+          type: 'string',
+          description: 'Get messages before this message ID (for pagination)',
+        },
+        after: {
+          type: 'string',
+          description: 'Get messages after this message ID (for pagination)',
+        },
+      },
+      required: ['thread'],
+    },
+  },
+  {
+    name: 'list_archived_threads',
+    description: 'List archived threads in a channel. Can list both public and private archived threads.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        channel: {
+          type: 'string',
+          description: 'The channel name or ID to list archived threads from (fuzzy matched)',
+        },
+        type: {
+          type: 'string',
+          enum: ['public', 'private'],
+          description: 'Type of archived threads to list (default: "public")',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of archived threads to return (default: 25)',
+        },
+        before: {
+          type: 'string',
+          description: 'ISO timestamp — return threads archived before this date (for pagination)',
+        },
+      },
+      required: ['channel'],
+    },
+  },
+  {
+    name: 'edit_thread',
+    description: 'Edit thread properties such as name, auto-archive duration, slowmode, and locked/archived status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        thread: {
+          type: 'string',
+          description: 'The thread name or ID to edit',
+        },
+        name: {
+          type: 'string',
+          description: 'New name for the thread',
+        },
+        autoArchiveDuration: {
+          type: 'number',
+          description: 'Auto-archive duration in minutes: 60, 1440 (1 day), 4320 (3 days), or 10080 (7 days)',
+        },
+        rateLimitPerUser: {
+          type: 'number',
+          description: 'Slowmode in seconds (0-21600). Set to 0 to disable.',
+        },
+        archived: {
+          type: 'boolean',
+          description: 'Whether the thread is archived',
+        },
+        locked: {
+          type: 'boolean',
+          description: 'Whether the thread is locked',
+        },
+        reason: {
+          type: 'string',
+          description: 'The reason for editing this thread (shown in audit log)',
+        },
+      },
+      required: ['thread'],
+    },
+  },
+  {
+    name: 'get_thread_pinned_messages',
+    description: 'Get all pinned messages in a thread.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        thread: {
+          type: 'string',
+          description: 'The thread name or ID to get pinned messages from',
+        },
+      },
+      required: ['thread'],
+    },
+  },
 ];
 
 export async function executeThreadTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -216,6 +335,16 @@ export async function executeThreadTool(name: string, args: Record<string, unkno
       return await removeThreadMember(args);
     case 'list_thread_members':
       return await listThreadMembers(args);
+    case 'get_thread':
+      return await getThread(args);
+    case 'get_thread_messages':
+      return await getThreadMessages(args);
+    case 'list_archived_threads':
+      return await listArchivedThreads(args);
+    case 'edit_thread':
+      return await editThread(args);
+    case 'get_thread_pinned_messages':
+      return await getThreadPinnedMessages(args);
     default:
       throw new Error(`Unknown thread tool: ${name}`);
   }
@@ -257,6 +386,18 @@ async function findThread(identifier: string): Promise<ThreadChannel> {
   );
   if (partialMatch) {
     return partialMatch as ThreadChannel;
+  }
+
+  // Try direct fetch by ID (catches archived threads not in active list)
+  if (/^\d+$/.test(identifier)) {
+    try {
+      const fetched = await guild.channels.fetch(identifier);
+      if (fetched && fetched.isThread()) {
+        return fetched as ThreadChannel;
+      }
+    } catch {
+      // Not found or not accessible, fall through to error
+    }
   }
 
   // Not found — provide helpful error
@@ -505,5 +646,178 @@ async function listThreadMembers(args: Record<string, unknown>): Promise<string>
     thread: { name: thread.name, id: thread.id },
     memberCount: memberList.length,
     members: memberList,
+  }, null, 2);
+}
+
+async function getThread(args: Record<string, unknown>): Promise<string> {
+  const threadIdentifier = args['thread'] as string;
+  const thread = await findThread(threadIdentifier);
+
+  return JSON.stringify({
+    success: true,
+    thread: {
+      ...formatThread(thread),
+      type: thread.type === ChannelType.PrivateThread ? 'private' : 'public',
+      rateLimitPerUser: thread.rateLimitPerUser ?? 0,
+      autoArchiveDuration: thread.autoArchiveDuration ?? null,
+      totalMessageSent: thread.totalMessageSent ?? null,
+      ownerId: thread.ownerId ?? null,
+      url: thread.url,
+    },
+  }, null, 2);
+}
+
+async function getThreadMessages(args: Record<string, unknown>): Promise<string> {
+  const threadIdentifier = args['thread'] as string;
+  const limit = Math.min(args['limit'] as number || 10, 100);
+  const before = args['before'] as string | undefined;
+  const after = args['after'] as string | undefined;
+
+  const thread = await findThread(threadIdentifier);
+
+  const fetchOptions: { limit: number; before?: string; after?: string } = { limit };
+  if (before) fetchOptions.before = before;
+  if (after) fetchOptions.after = after;
+
+  const messages = await thread.messages.fetch(fetchOptions);
+
+  const messageList = messages
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+    .map(msg => ({
+      id: msg.id,
+      content: msg.content || '(no text content)',
+      author: {
+        id: msg.author.id,
+        username: msg.author.username,
+        isBot: msg.author.bot,
+      },
+      createdAt: msg.createdAt.toISOString(),
+      editedAt: msg.editedAt?.toISOString() ?? null,
+      hasEmbeds: msg.embeds.length > 0,
+      hasAttachments: msg.attachments.size > 0,
+      attachments: msg.attachments.size > 0
+        ? msg.attachments.map(a => ({
+            id: a.id,
+            name: a.name,
+            url: a.url,
+            size: a.size,
+            contentType: a.contentType,
+          }))
+        : undefined,
+      replyTo: msg.reference?.messageId ?? null,
+    }));
+
+  return JSON.stringify({
+    thread: {
+      name: thread.name,
+      id: thread.id,
+      parentChannel: thread.parent
+        ? { name: thread.parent.name, id: thread.parent.id }
+        : null,
+    },
+    messageCount: messageList.length,
+    messages: messageList,
+  }, null, 2);
+}
+
+async function listArchivedThreads(args: Record<string, unknown>): Promise<string> {
+  const channelIdentifier = args['channel'] as string;
+  const type = (args['type'] as string) || 'public';
+  const limit = args['limit'] as number | undefined;
+  const before = args['before'] as string | undefined;
+
+  const channel = await smartFindTextChannel(channelIdentifier);
+
+  // Only TextChannel and NewsChannel support fetchArchivedThreads
+  if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
+    throw new Error(`Channel "#${channel.name}" does not support archived threads. Must be a text or announcement channel.`);
+  }
+
+  const textChannel = channel as TextChannel | NewsChannel;
+
+  const fetchOptions: FetchArchivedThreadOptions = {};
+  if (limit) fetchOptions.limit = limit;
+  if (before) fetchOptions.before = new Date(before);
+
+  let archived;
+  if (type === 'private') {
+    archived = await textChannel.threads.fetchArchived({ ...fetchOptions, type: 'private' });
+  } else {
+    archived = await textChannel.threads.fetchArchived({ ...fetchOptions, type: 'public' });
+  }
+
+  const threads = archived.threads.map(t => formatThread(t as ThreadChannel));
+
+  return JSON.stringify({
+    channel: { name: textChannel.name, id: textChannel.id },
+    type,
+    hasMore: archived.hasMore,
+    threadCount: threads.length,
+    threads,
+  }, null, 2);
+}
+
+async function editThread(args: Record<string, unknown>): Promise<string> {
+  const threadIdentifier = args['thread'] as string;
+  const name = args['name'] as string | undefined;
+  const autoArchiveDuration = args['autoArchiveDuration'] as number | undefined;
+  const rateLimitPerUser = args['rateLimitPerUser'] as number | undefined;
+  const archived = args['archived'] as boolean | undefined;
+  const locked = args['locked'] as boolean | undefined;
+  const reason = args['reason'] as string | undefined;
+
+  const thread = await findThread(threadIdentifier);
+
+  const edits: Record<string, unknown> = {};
+  if (name !== undefined) edits['name'] = name;
+  if (autoArchiveDuration !== undefined) edits['autoArchiveDuration'] = autoArchiveDuration as ThreadAutoArchiveDuration;
+  if (rateLimitPerUser !== undefined) edits['rateLimitPerUser'] = rateLimitPerUser;
+  if (archived !== undefined) edits['archived'] = archived;
+  if (locked !== undefined) edits['locked'] = locked;
+  if (reason !== undefined) edits['reason'] = reason;
+
+  const changes = Object.keys(edits).filter(k => k !== 'reason');
+  if (changes.length === 0) {
+    throw new Error('No properties to edit. Provide at least one of: name, autoArchiveDuration, rateLimitPerUser, archived, locked.');
+  }
+
+  await thread.edit(edits);
+
+  return JSON.stringify({
+    success: true,
+    message: `Thread "${thread.name}" updated: ${changes.join(', ')}`,
+    thread: {
+      ...formatThread(thread),
+      rateLimitPerUser: thread.rateLimitPerUser ?? 0,
+      autoArchiveDuration: thread.autoArchiveDuration ?? null,
+    },
+  }, null, 2);
+}
+
+async function getThreadPinnedMessages(args: Record<string, unknown>): Promise<string> {
+  const threadIdentifier = args['thread'] as string;
+  const thread = await findThread(threadIdentifier);
+
+  const pinned = await thread.messages.fetchPinned();
+
+  const pinnedList = pinned
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+    .map(msg => ({
+      id: msg.id,
+      content: msg.content || '(no text content)',
+      author: {
+        id: msg.author.id,
+        username: msg.author.username,
+        isBot: msg.author.bot,
+      },
+      createdAt: msg.createdAt.toISOString(),
+      hasEmbeds: msg.embeds.length > 0,
+      hasAttachments: msg.attachments.size > 0,
+    }));
+
+  return JSON.stringify({
+    thread: { name: thread.name, id: thread.id },
+    pinnedCount: pinnedList.length,
+    messages: pinnedList,
   }, null, 2);
 }

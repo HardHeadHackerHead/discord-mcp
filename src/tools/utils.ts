@@ -110,7 +110,51 @@ export async function smartFindTextChannel(identifier: string): Promise<GuildTex
     }
   }
 
-  // Not found - provide helpful error with suggestions from cache
+  // Fall back to searching active threads
+  const activeThreads = await guild.channels.fetchActiveThreads();
+
+  // Try exact ID match in threads
+  const threadById = activeThreads.threads.get(cleanId);
+  if (threadById) {
+    return threadById as GuildTextBasedChannel;
+  }
+
+  // Try exact name match in threads (case-insensitive)
+  const cleanIdLower = cleanId.toLowerCase();
+  const threadByName = activeThreads.threads.find(
+    t => t.name.toLowerCase() === cleanIdLower
+  );
+  if (threadByName) {
+    return threadByName as GuildTextBasedChannel;
+  }
+
+  // Try fuzzy name match in threads
+  let bestThreadScore = 0;
+  let bestThread: GuildTextBasedChannel | null = null;
+  for (const [, thread] of activeThreads.threads) {
+    const score = similarity(thread.name, cleanId);
+    if (score > bestThreadScore && score >= 0.7) {
+      bestThreadScore = score;
+      bestThread = thread as GuildTextBasedChannel;
+    }
+  }
+  if (bestThread) {
+    return bestThread;
+  }
+
+  // Try direct fetch by ID (catches archived threads not in active list)
+  if (/^\d+$/.test(cleanId)) {
+    try {
+      const fetched = await guild.channels.fetch(cleanId);
+      if (fetched && fetched.isThread()) {
+        return fetched as GuildTextBasedChannel;
+      }
+    } catch {
+      // Not found or not accessible, fall through to error
+    }
+  }
+
+  // Not found in channels or threads - provide helpful error with suggestions from both
   const suggestions = cachedMessageChannels
     .map(c => ({ name: c.name, type: c.type, score: similarity(c.name, cleanId) }))
     .filter(s => s.score > 0.3)
@@ -118,9 +162,18 @@ export async function smartFindTextChannel(identifier: string): Promise<GuildTex
     .slice(0, 3)
     .map(s => s.type === 'voice' ? `🔊${s.name}` : `#${s.name}`);
 
+  const threadSuggestions = activeThreads.threads
+    .map(t => ({ name: t.name, score: similarity(t.name, cleanId) }))
+    .filter(s => s.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(s => `🧵${s.name}`);
+
+  const allSuggestions = [...suggestions, ...threadSuggestions];
+
   let errorMsg = `Channel "${identifier}" not found.`;
-  if (suggestions.length > 0) {
-    errorMsg += ` Did you mean: ${suggestions.join(', ')}?`;
+  if (allSuggestions.length > 0) {
+    errorMsg += ` Did you mean: ${allSuggestions.join(', ')}?`;
   }
   // Also list all available channels if few
   if (cachedMessageChannels.length <= 15) {
