@@ -7,7 +7,7 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/sjnb8wWGCJ)
 [![GitHub stars](https://img.shields.io/github/stars/HardHeadHackerHead/discord-mcp?style=social)](https://github.com/HardHeadHackerHead/discord-mcp)
 
-**Manage your entire Discord server from Claude Code, Claude Desktop, Cursor, or Windsurf.** 139 admin tools across 20 categories — roles, channels, members, messages, threads, moderation, forums, stages, webhooks, events, polls, DMs, and more. Just talk to your AI in plain English.
+**Manage your entire Discord server from Claude Code, Claude Co-Work, Claude Desktop, Cursor, or Windsurf.** 139 admin tools across 20 categories — roles, channels, members, messages, threads, moderation, forums, stages, webhooks, events, polls, DMs, and more. Just talk to your AI in plain English.
 
 Built by [QuadsLab.io](https://quadslab.io) | [Discord](https://discord.gg/sjnb8wWGCJ) | [npm](https://www.npmjs.com/package/@quadslab.io/discord-mcp)
 
@@ -96,7 +96,7 @@ npx @quadslab.io/discord-mcp check
 
 ## What Can You Do With It?
 
-Once connected to Claude Code, just ask in natural language:
+Once connected to Claude Code or Claude Co-Work, just ask in natural language:
 
 - *"Send a welcome message in #general"*
 - *"Lock down the #announcements channel"*
@@ -208,7 +208,7 @@ $ npx @quadslab.io/discord-mcp [command]
 
 | Command | Description |
 |---------|-------------|
-| `init` | Interactive setup wizard — creates bot, validates token, auto-configures Claude Code / Desktop / Cursor / Windsurf |
+| `init` | Interactive setup wizard — creates bot, validates token, auto-configures Claude Code / Co-Work / Desktop / Cursor / Windsurf |
 | `check` | Health check — verifies token, server access, and permission audit |
 | `update` | Check for new versions and clear the npx cache so the next run pulls the latest |
 | `start` | Start the MCP server (default when no command given) |

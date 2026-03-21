@@ -1099,7 +1099,7 @@ async function runUpdate(): Promise<void> {
   ], c.green);
   ln('');
 
-  bullet('If using Claude Code, type /mcp to reconnect');
+  bullet('If using Claude Code or Co-Work, type /mcp to reconnect');
   bullet('If using Claude Desktop, restart the app');
   bullet('If using Cursor / Windsurf, reload the window');
   ln('');
