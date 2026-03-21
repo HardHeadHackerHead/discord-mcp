@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-03-21
+
+### Added
+
+- `update` CLI command — checks npm for the latest version, clears the npx cache, and shows next steps. No reconfiguration needed.
+- Updating section in README with instructions for keeping the package up to date
+
+## [2.1.0] - 2026-03-21
+
+### Added
+
+- 5 new thread tools (10 → 15 total, 134 → 139 overall):
+  - `get_thread` — get detailed thread info (type, slowmode, auto-archive, owner, URL)
+  - `get_thread_messages` — read messages from a thread with before/after pagination
+  - `list_archived_threads` — list public or private archived threads in a channel
+  - `edit_thread` — edit thread name, auto-archive duration, slowmode, locked/archived status
+  - `get_thread_pinned_messages` — get all pinned messages in a thread
+- Thread-aware fuzzy matching in `smartFindTextChannel` — all 14 message tools (send, edit, pin, react, etc.) now work in threads automatically
+- Archived thread support — direct ID fetch fallback in both `findThread` and `smartFindTextChannel` so archived threads are accessible by ID
+
 ## [2.0.0] - 2026-02-22
 
 ### Added

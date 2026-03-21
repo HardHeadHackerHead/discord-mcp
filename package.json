@@ -1,7 +1,7 @@
 {
   "name": "@quadslab.io/discord-mcp",
-  "version": "2.0.1",
-  "description": "Manage your entire Discord server from Claude Code, Claude Desktop, Cursor, or Windsurf via MCP. 134 admin tools across 20 categories. Interactive setup wizard included.",
+  "version": "2.1.1",
+  "description": "Manage your entire Discord server from Claude Code, Claude Desktop, Cursor, or Windsurf via MCP. 139 admin tools across 20 categories. Interactive setup wizard included.",
   "type": "module",
   "main": "dist/index.js",
   "exports": {

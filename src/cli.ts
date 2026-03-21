@@ -13,6 +13,7 @@ import os from 'os';
 import { Client, GatewayIntentBits, PermissionFlagsBits, Guild } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 
 // ── ANSI Helpers ─────────────────────────────────────────────────────
 
@@ -339,7 +340,7 @@ async function runInit(): Promise<void> {
     await typewrite(`  ${c.gray}—${c.reset}  `, 40);
     await typewrite(`${c.dim}Interactive Setup Wizard${c.reset}`, 20);
     ln('');
-    ln(`  ${c.dim}134 admin tools across 20 categories${c.reset}`);
+    ln(`  ${c.dim}139 admin tools across 20 categories${c.reset}`);
     ln(`  ${c.dim}Manage your entire Discord server from any MCP client${c.reset}`);
     ln('');
     divider();
@@ -1018,6 +1019,92 @@ async function runCheck(): Promise<void> {
   }
 }
 
+// ── Update Command ──────────────────────────────────────────────────
+
+async function runUpdate(): Promise<void> {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+  const currentVersion: string = pkg.version;
+
+  ln('');
+  ln(`  ${LOGO_MINI} ${DISCORD_MCP_BADGE} ${c.dim}— Update${c.reset}`);
+  divider();
+  ln('');
+
+  out(`  ${c.dim}Current version ..${c.reset} `);
+  ln(`${c.cyanBright}v${currentVersion}${c.reset}`);
+
+  // Check latest version on npm
+  const spinner = createSpinner('Checking for updates...');
+  let latestVersion: string;
+  try {
+    latestVersion = execSync('npm view @quadslab.io/discord-mcp version', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    spinner.stop();
+    error('Could not check for updates. Check your internet connection.');
+    ln('');
+    return;
+  }
+  spinner.stop();
+
+  out(`  ${c.dim}Latest version ...${c.reset} `);
+  ln(`${c.cyanBright}v${latestVersion}${c.reset}`);
+  ln('');
+
+  if (currentVersion === latestVersion) {
+    success('Already up to date!');
+    ln('');
+    return;
+  }
+
+  // Clear npx cache for our package
+  const spinner2 = createSpinner('Clearing npx cache...');
+  let cacheCleared = false;
+  try {
+    const npmCache = execSync('npm config get cache', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    const npxDir = path.join(npmCache, '_npx');
+
+    if (fs.existsSync(npxDir)) {
+      const entries = fs.readdirSync(npxDir);
+      for (const entry of entries) {
+        const pkgPath = path.join(npxDir, entry, 'node_modules', '@quadslab.io', 'discord-mcp', 'package.json');
+        if (fs.existsSync(pkgPath)) {
+          fs.rmSync(path.join(npxDir, entry), { recursive: true, force: true });
+          cacheCleared = true;
+        }
+      }
+    }
+  } catch {
+    // Ignore — we'll report below
+  }
+  spinner2.stop();
+
+  if (cacheCleared) {
+    success(`Cache cleared`);
+  } else {
+    info('No cached version found (may already be cleared)');
+  }
+  ln('');
+
+  box([
+    `${c.greenBright}${c.bold}Update ready!${c.reset}`,
+    ``,
+    `Next launch will use ${c.bold}v${latestVersion}${c.reset} automatically.`,
+    `Run ${c.bold}discord-mcp check${c.reset} to verify.`,
+  ], c.green);
+  ln('');
+
+  bullet('If using Claude Code, type /mcp to reconnect');
+  bullet('If using Claude Desktop, restart the app');
+  bullet('If using Cursor / Windsurf, reload the window');
+  ln('');
+}
+
 // ── Version Command ──────────────────────────────────────────────────
 
 function printVersion(): void {
@@ -1030,7 +1117,7 @@ function printVersion(): void {
 function printHelp(): void {
   ln(LOGO);
   ln(`  ${c.bold}Discord MCP Server${c.reset}  ${c.dim}— Manage Discord from any MCP client${c.reset}`);
-  ln(`  ${c.dim}134 tools across 20 categories${c.reset}`);
+  ln(`  ${c.dim}139 tools across 20 categories${c.reset}`);
   ln('');
   divider();
   ln('');
@@ -1043,6 +1130,7 @@ function printHelp(): void {
   ln('');
   ln(`    ${c.cyanBright}init${c.reset}      Interactive setup wizard`);
   ln(`    ${c.cyanBright}check${c.reset}     Health check & permission audit`);
+  ln(`    ${c.cyanBright}update${c.reset}    Check for updates & clear npx cache`);
   ln(`    ${c.cyanBright}start${c.reset}     Start the MCP server ${c.dim}(default)${c.reset}`);
   ln(`    ${c.cyanBright}help${c.reset}      Show this help message`);
   ln(`    ${c.cyanBright}version${c.reset}   Show version`);
@@ -1054,6 +1142,9 @@ function printHelp(): void {
   ln('');
   ln(`    ${c.dim}# Verify everything works${c.reset}`);
   ln(`    ${c.cyan}$${c.reset} npx @quadslab.io/discord-mcp check`);
+  ln('');
+  ln(`    ${c.dim}# Update to the latest version${c.reset}`);
+  ln(`    ${c.cyan}$${c.reset} npx @quadslab.io/discord-mcp update`);
   ln('');
   ln(`    ${c.dim}# In .mcp.json (auto-detected)${c.reset}`);
   ln(`    ${c.cyan}$${c.reset} npx @quadslab.io/discord-mcp`);
@@ -1075,7 +1166,7 @@ async function runStart(): Promise<void> {
 const subcommand = process.argv[2];
 
 // If not a TTY (i.e., launched by MCP via stdio), always start the server
-if (!process.stdin.isTTY && subcommand !== 'check' && subcommand !== 'help' && subcommand !== 'version' && subcommand !== '--version' && subcommand !== '-v' && subcommand !== '--help' && subcommand !== '-h') {
+if (!process.stdin.isTTY && subcommand !== 'check' && subcommand !== 'update' && subcommand !== 'help' && subcommand !== 'version' && subcommand !== '--version' && subcommand !== '-v' && subcommand !== '--help' && subcommand !== '-h') {
   runStart();
 } else {
   switch (subcommand) {
@@ -1084,6 +1175,9 @@ if (!process.stdin.isTTY && subcommand !== 'check' && subcommand !== 'help' && s
       break;
     case 'check':
       runCheck();
+      break;
+    case 'update':
+      runUpdate();
       break;
     case 'start':
     case undefined:

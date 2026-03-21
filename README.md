@@ -210,11 +210,29 @@ $ npx @quadslab.io/discord-mcp [command]
 |---------|-------------|
 | `init` | Interactive setup wizard — creates bot, validates token, auto-configures Claude Code / Desktop / Cursor / Windsurf |
 | `check` | Health check — verifies token, server access, and permission audit |
+| `update` | Check for new versions and clear the npx cache so the next run pulls the latest |
 | `start` | Start the MCP server (default when no command given) |
 | `help` | Show help message |
 | `version` | Show version |
 
 When launched via `.mcp.json` (stdin is not a TTY), the server starts automatically — no subcommand needed.
+
+### Updating
+
+Your MCP client config doesn't pin a version, so updating is simple:
+
+```bash
+npx @quadslab.io/discord-mcp update
+```
+
+This checks npm for the latest version, clears the npx cache, and your next MCP client launch will use the new version automatically. Your bot token, server, and client configuration are all preserved — nothing needs to be reconfigured.
+
+To verify after updating:
+
+```bash
+npx @quadslab.io/discord-mcp version
+npx @quadslab.io/discord-mcp check
+```
 
 ---
 
