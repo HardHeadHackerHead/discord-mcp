@@ -1,4 +1,4 @@
-import { getGuild, getServerCache } from '../discord-client.js';
+import { getGuild, getServerCache, refreshServerCache, ServerCache } from '../discord-client.js';
 import {
   TextChannel,
   CategoryChannel,
@@ -362,16 +362,9 @@ export async function smartFindRole(identifier: string): Promise<Role> {
 }
 
 /**
- * Smart find member - uses cached data and fuzzy matching
+ * Match a member identifier against the cached member list (ID, exact name, then fuzzy)
  */
-export async function smartFindMember(identifier: string): Promise<GuildMember> {
-  const guild = await getGuild();
-  const cache = await getServerCache();
-  const cleanId = cleanMemberIdentifier(identifier);
-
-  // Use cache for fuzzy matching first
-  const cachedMembers = cache.members;
-
+function matchCachedMemberId(cachedMembers: ServerCache['members'], cleanId: string): string | undefined {
   // Try exact ID match
   let matchedId = cachedMembers.find(m => m.id === cleanId)?.id;
 
@@ -402,6 +395,34 @@ export async function smartFindMember(identifier: string): Promise<GuildMember> 
     }
   }
 
+  return matchedId;
+}
+
+/**
+ * Smart find member - uses cached data and fuzzy matching
+ */
+export async function smartFindMember(identifier: string): Promise<GuildMember> {
+  const guild = await getGuild();
+  let cache = await getServerCache();
+  const cleanId = cleanMemberIdentifier(identifier);
+
+  // A raw user ID can be resolved directly, even if the member joined after the cache was built
+  if (/^\d{17,20}$/.test(cleanId)) {
+    try {
+      return await guild.members.fetch(cleanId);
+    } catch {
+      // Not a member ID, fall through to name matching
+    }
+  }
+
+  let matchedId = matchCachedMemberId(cache.members, cleanId);
+
+  // The cache is only built at startup, so refresh once to pick up members who joined since
+  if (!matchedId) {
+    cache = await refreshServerCache();
+    matchedId = matchCachedMemberId(cache.members, cleanId);
+  }
+
   // If found via cache, get the actual member object
   if (matchedId) {
     // Fetch the specific member to ensure we have latest data
@@ -414,6 +435,8 @@ export async function smartFindMember(identifier: string): Promise<GuildMember> 
       // Member might have left, fall through to error
     }
   }
+
+  const cachedMembers = cache.members;
 
   // Not found - provide helpful error with suggestions from cache
   const suggestions = cachedMembers

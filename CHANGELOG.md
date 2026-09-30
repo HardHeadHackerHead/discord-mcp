@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Member lookup (`get_member`, `assign_role`, `kick_member`, etc.) now finds bots and members who joined after the server started — bots are kept in the member cache, raw user IDs are fetched directly from Discord, and the cache is refreshed once before reporting a member as not found (#3)
+
 ## [2.1.1] - 2026-03-21
 
 ### Added

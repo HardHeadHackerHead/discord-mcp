@@ -44,7 +44,7 @@ export async function withRetry<T>(
 export interface ServerCache {
   channels: Array<{ id: string; name: string; type: string; categoryId: string | null; categoryName: string | null }>;
   roles: Array<{ id: string; name: string; color: string; position: number }>;
-  members: Array<{ id: string; username: string; displayName: string; nickname: string | null }>;
+  members: Array<{ id: string; username: string; displayName: string; nickname: string | null; isBot: boolean }>;
   lastUpdated: Date;
 }
 
@@ -195,14 +195,14 @@ export async function refreshServerCache(): Promise<ServerCache> {
       position: r.position,
     }));
 
-  // Build member cache (exclude bots for simpler list)
+  // Build member cache (bots included so member tools can target them)
   const members = [...guild.members.cache.values()]
-    .filter(m => !m.user.bot)
     .map(m => ({
       id: m.id,
       username: m.user.username,
       displayName: m.displayName,
       nickname: m.nickname,
+      isBot: m.user.bot,
     }));
 
   serverCache = {
@@ -259,7 +259,7 @@ export async function getServerSummary(): Promise<string> {
     summary += `- ... and ${cache.roles.length - 20} more\n`;
   }
 
-  summary += `\n## Members (${cache.members.length} non-bot members)\n`;
+  summary += `\n## Members (${cache.members.filter(m => !m.isBot).length} non-bot members)\n`;
   summary += `Use list_members tool to see full member list.\n`;
 
   return summary;
