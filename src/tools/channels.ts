@@ -793,7 +793,6 @@ async function setChannelPermissions(args: Record<string, unknown>): Promise<str
       ViewChannel: true,
       SendMessages: true,
       ManageChannels: true,
-      ManageRoles: true,
     }, { reason: 'Bot self-access: preventing lockout when making channel private' });
   }
 

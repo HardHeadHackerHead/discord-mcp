@@ -712,7 +712,7 @@ async function deleteIntegration(args: Record<string, unknown>): Promise<string>
   }
 
   const integrationName = integration.name;
-  await (guild as any).deleteIntegration(integrationId);
+  await integration.delete(reason);
 
   return JSON.stringify({
     success: true,
